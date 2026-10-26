@@ -1,90 +1,84 @@
+import {dynamicStrategy,priceAnalysis} from './engine.mjs';
 'use strict';
-// FC 27 Trading Desk v2.0 — fail-closed data-quality gate. No EA login, no trading automation.
-const API = 'https://fc27-market.val.run';
-const STORE = 'fc27desk_v2';
-const OLD_STORE = 'fc27desk_v1';
-const MAX_SOURCE_AGE_MIN = 45;
-const MAX_PRICE_AGE_MIN = 60;
-const MAX_HISTORY_DAYS = 35;
-const DEFAULTS = {balance:320000,minProfit:1500,minROI:6,maxStake:15,horizon:7};
-const $=id=>document.getElementById(id);
-const number=x=>Number(x);
-const coins=x=>Math.round(Number(x)||0).toLocaleString('pl-PL');
-const pct=x=>Number(x).toFixed(1).replace('.',',')+'%';
-const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const MAX_FUTURE_MS=5*60*1000;
-function stored(key){try{return JSON.parse(localStorage.getItem(key)||'null')||{}}catch{return {}}}
-const old=stored(OLD_STORE),previous=stored(STORE);
-// Preserve settings from v1 but deliberately discard previous demo snapshots and unverified forecast logs.
-const state={...DEFAULTS,...Object.fromEntries(['balance','minProfit','minROI','maxStake','horizon'].filter(k=>Number.isFinite(Number(old[k]))).map(k=>[k,Number(old[k])])),...previous,
-  sourceStatus:'unknown',sourceReason:'Nie sprawdzono źródła.',mode:'none',sourceAt:null,market:[],loading:false,filter:'all',
-  sourceName:'fc27-market.val.run',snapshots:previous.snapshots||{},manualQuotes:previous.manualQuotes||{},watch:previous.watch||[],failedAt:null};
-function persist(){const obj={balance:state.balance,minProfit:state.minProfit,minROI:state.minROI,maxStake:state.maxStake,horizon:state.horizon,snapshots:state.snapshots,manualQuotes:state.manualQuotes,watch:state.watch};try{localStorage.setItem(STORE,JSON.stringify(obj))}catch{}}
-const elapsedMinutes=t=>{const ms=Date.parse(t);return Number.isFinite(ms)?(Date.now()-ms)/60000:Infinity};
-function validTimestamp(t){const ms=typeof t==='number'?t:Date.parse(t);return Number.isFinite(ms)&&ms>0&&ms<=Date.now()+MAX_FUTURE_MS}
-function statusForStamp(t){if(!validTimestamp(t))return {ok:false,reason:'Brak poprawnego czasu aktualizacji'};const age=elapsedMinutes(t);if(age<0)return {ok:false,reason:'Czas aktualizacji pochodzi z przyszłości'};if(age>MAX_SOURCE_AGE_MIN)return {ok:false,reason:`Dane sprzed ${Math.round(age)} min (limit ${MAX_SOURCE_AGE_MIN} min)`};return {ok:true,reason:`Dane sprzed ${Math.round(age)} min`}}
-function safePrice(v){const p=Number(v);return Number.isFinite(p)&&p>=200&&p<=10000000?p:null}
-function snapshot(id,name,ts,price){const t=typeof ts==='number'?ts:Date.parse(ts);const p=safePrice(price);if(!String(id||'').trim()||!p||!validTimestamp(t)||t<Date.now()-MAX_HISTORY_DAYS*86400000)return false;const key=String(id);const b=state.snapshots[key]||{name,points:[]};const last=b.points.at(-1);if(last&&Math.abs(t-last[0])<6*3600000&&Math.abs(p/last[1]-1)>.4)return false;const newPoints=[...b.points,[t,p]].filter(x=>x[0]>Date.now()-MAX_HISTORY_DAYS*86400000&&x[0]<=Date.now()+MAX_FUTURE_MS).sort((a,b)=>a[0]-b[0]);b.points=[...new Map(newPoints.map(pt=>[pt[0],pt])).values()].slice(-850);b.name=name||b.name;state.snapshots[key]=b;return true;}
-function sample(id){return(state.snapshots[String(id)]?.points||[]).filter(p=>Array.isArray(p)&&validTimestamp(p[0])&&p[0]>Date.now()-MAX_HISTORY_DAYS*86400000).sort((a,b)=>a[0]-b[0]);}
-function baseline(points,hours){if(points.length<2)return null;const last=points.at(-1);const target=last[0]-hours*3600000;const tolerance=hours===24?4:hours===168?14:2;const candidates=points.filter(p=>Math.abs(p[0]-target)<=tolerance*3600000);if(!candidates.length)return null;const nearest=candidates.reduce((a,b)=>Math.abs(a[0]-target)<Math.abs(b[0]-target)?a:b);return last[1]&&nearest[1]?100*(last[1]/nearest[1]-1):null;}
-function trendOf(points){const c24=baseline(points,24),c7=baseline(points,168);const vals=[c24,c7].filter(x=>x!==null);const trend=(c24!==null&&c24<=-6)||(c7!==null&&c7<=-12)?'falling':(c24!==null&&c7!==null&&Math.abs(c24)<4&&Math.abs(c7)<8)?'stable':'unknown';return {c24,c7,trend,count:points.length,spanDays:points.length?(points.at(-1)[0]-points[0][0])/86400000:0};}
-function playerView(card){const id=String(card.eaId);const points=sample(id);const t=trendOf(points);const isManual=card.kind==='manual';const stamped=isManual?card.updatedAt:state.sourceAt;const quoteAge=elapsedMinutes(stamped);const fresh=isManual?quoteAge>=0&&quoteAge<=MAX_PRICE_AGE_MIN:state.sourceStatus==='fresh'&&quoteAge>=0&&quoteAge<=MAX_PRICE_AGE_MIN;
-  const trendText=t.trend==='falling'?'Trend spadkowy':t.trend==='stable'?'Względna stabilizacja':'Za mało danych do oceny trendu';
-  const reason=!fresh?'Odczyt nieaktualny — brak oceny zakupowej.':t.trend==='falling'?'Silny trend spadkowy. Nie zakładamy odbicia tylko dlatego, że cena wcześniej była wyższa.':t.trend==='stable'?'Wahania nieduże. Nie oznacza to gwarancji wzrostu.':'Historia nie wystarcza do przewidywania kierunku.';
-  return {...card,points,...t,fresh,quoteAge,trendText,reason,kind:card.kind||'feed'};
+const STORE='fc27desk_v4',OLD_STORE='fc27desk_v2', $=id=>document.getElementById(id);
+const money=x=>Math.round(x||0).toLocaleString('pl-PL');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const percent=x=>x===null||!Number.isFinite(x)?'—':`${(x>0?'+':'')}${x.toFixed(1).replace('.',',')}%`;
+function storeRead(key){try{return JSON.parse(localStorage.getItem(key)||'{}')}catch{return{}}}
+const existing=storeRead(STORE),old=storeRead(OLD_STORE);
+const state={balance:Number(existing.balance??old.balance??320000),workerUrl:existing.workerUrl||'',history:existing.history||{},quotes:[],view:'all',busy:false,lastFetch:null,lastError:null,failed:[],sourceAt:null};
+function save(){try{localStorage.setItem(STORE,JSON.stringify({balance:state.balance,workerUrl:state.workerUrl,history:state.history}))}catch(e){$('source-detail').textContent='Nie udało się zapisać historii na urządzeniu: '+e.message}}
+function strategyRender(){const strat=dynamicStrategy(state.balance);
+ $('balance-display').innerHTML=money(state.balance)+' <span>◉</span>';$('tier').textContent=strat.tier;
+ $('max-position').textContent=money(state.balance*strat.weight);$('strategy-title').textContent=`Plan: ${strat.tier}`;
+ const a=state.balance;
+ document.getElementById('strategy-text').textContent=`Automatycznie: ${strat.focus}. Oceniamy każdą kartę, która mieści się w saldzie. Droższe pozycje wymagają większego marginesu bezpieczeństwa.`;
+ const bands=[{t:'Quick flipping / mass bid',frac:.24},{t:'Eventowe inwestycje 1–3 dni',frac:.32},{t:'Rezerwa na nowe SBC / promocje',frac:.44}];
+ document.getElementById('strategy-blocks').innerHTML=bands.map(b=>`<div class="strategy-item"><span>${b.t}</span><strong>${money(a*b.frac)}</strong></div>`).join('');
 }
-function marketList(){const all=[];for(const p of state.market)all.push(playerView({...p,kind:'feed',updatedAt:state.sourceAt}));for(const [id,v] of Object.entries(state.manualQuotes)){const p=safePrice(v.price);if(p)all.push(playerView({eaId:id,name:v.name,price:p,kind:'manual',updatedAt:v.updatedAt,rating:'—',group:'własny odczyt'}));}
-  return all.filter(p=>p.fresh&&safePrice(p.price)&&p.price<=state.balance*state.maxStake/100).sort((a,b)=>Number(b.kind==='manual')-Number(a.kind==='manual')||b.points.length-a.points.length||a.price-b.price);
+function record(q){const key=String(q.id);const t=Date.parse(q.updatedAt);if(!Number.isFinite(t)||!Number.isFinite(q.price)||t>Date.now()+120000)return;
+ const points=state.history[key]||[];const close=points.some(p=>Math.abs(p[0]-t)<10*60000);
+ if(!close)points.push([t,q.price]);state.history[key]=points.filter(p=>p[0]>=Date.now()-14*86400000).sort((a,b)=>a[0]-b[0]).slice(-200);}
+function evaluated(){return state.quotes.map(q=>({...q,analysis:priceAnalysis(q,state.history[q.id]||[],state.balance)}))
+ .sort((a,b)=>b.analysis.score-a.analysis.score||a.price-b.price);}
+function cardElement(c){const a=c.analysis;const badge={candidate:'SCENARIUSZ',flip:'QUICK FLIP',risk:'TREND SPADKOWY',stale:'STARE DANE',budget:'POZA BUDŻETEM',monitor:'OBSERWUJ'}[a.signal];
+ return `<article class="signal ${a.signal==='candidate'?'good':a.falling?'bearish':''}" data-card="${esc(c.id)}" tabindex="0" role="button">
+  <div class="signal-top"><div class="who"><div class="avatar">${esc(c.name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div><strong>${esc(c.name)}</strong><small>${c.rating||'—'} OVR · FUTBIN PS/Xbox · ${Math.round(a.age)} min temu</small></div></div><span class="tag ${a.signal==='candidate'?'good':a.signal==='risk'?'risk':a.signal==='budget'?'budget':'watch'}">${badge}</span></div>
+  <div class="stats"><div><small>Cena referencyjna</small><strong>${money(c.price)}</strong></div><div><small>24h</small><strong>${percent(a.p24)}</strong></div><div><small>7 dni</small><strong>${percent(a.p7)}</strong></div></div>
+  <p class="reason">${esc(a.why)}</p><div class="quick-limit"><div><small>Limit zakupu do flipa</small><strong>${money(a.targetBid)}</strong></div><div style="text-align:right"><small>Potencjał netto przy limicie*</small><strong>+${money(a.possibleFlipProfit)}</strong></div></div><div class="signal-foot"><span>Ekspozycja ${percent(a.exposure*100)}</span><span>Ryzyko: ${a.risk}</span></div>
+  <p class="block-note">*To nie jest wykryta oferta. Limit wyliczony z ceny referencyjnej, a sprzedaż nie jest gwarantowana.</p>
+ </article>`;
 }
-function sellLimit(reference){const p=safePrice(reference);if(!p)return null;return Math.floor(p*.98/50)*50;}
-function maxBuy(reference){const sell=sellLimit(reference);if(!sell)return null;const payout=Math.floor(sell*.95);return Math.max(0,Math.floor(Math.min(payout-state.minProfit,payout/(1+state.minROI/100))/50)*50);}
-function rowMarkup(r){const bearish=r.trend==='falling',stability=r.trend==='stable';const tag=bearish?'SPADEK':stability?'STABILIZACJA':'ZA MAŁO DANYCH';return `<article class="signal ${bearish?'bearish':''}" data-id="${escapeHTML(r.eaId)}" data-kind="${escapeHTML(r.kind)}" tabindex="0" role="button" aria-label="Szczegóły ${escapeHTML(r.name)}"><div class="signal-top"><div class="who"><div class="avatar">${escapeHTML(String(r.name||'FC').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase())}</div><div><strong>${escapeHTML(r.name)}</strong><small>${escapeHTML(r.rating||'—')} OVR · ${r.kind==='manual'?'wpis ręczny':'publiczny indeks cen'} · ${Math.round(r.quoteAge)} min temu</small></div></div><span class="tag ${bearish?'watch':''}">${tag}</span></div><div class="stats"><div><small>Cena referencyjna</small><strong>${coins(r.price)}</strong></div><div><small>Zmiana / 24 h</small><strong>${r.c24===null?'—':pct(r.c24)}</strong></div><div><small>Zmiana / 7 dni</small><strong>${r.c7===null?'—':pct(r.c7)}</strong></div></div><p class="reason">${escapeHTML(r.reason)}</p><div class="signal-foot"><span>Prognoza wzrostu: niedostępna</span><span>${r.points.length} pomiarów</span></div></article>`;}
-function render(){const market=marketList();const h=state.sourceStatus==='fresh';$('balance-display').innerHTML=coins(state.balance)+' <span>◉</span>';$('limit-card').textContent=coins(state.balance*state.maxStake/100);$('metric-target').textContent=coins(state.minProfit)+'+';
- const manualFresh=Object.values(state.manualQuotes).some(x=>elapsedMinutes(x.updatedAt)<=MAX_PRICE_AGE_MIN);
- $('data-pill').textContent=state.loading?'◌ Pobieranie':h?'● Feed aktualny':manualFresh?'◉ Wpis ręczny':state.sourceStatus==='unknown'?'○ Brak danych':'! Feed niedostępny';$('data-pill').className='pill '+(h?'':state.sourceStatus==='unknown'?'off':'warn');
- $('freshness-strip').hidden=h||state.sourceStatus==='unknown';$('freshness-strip').textContent=`Brak aktualnego feedu cen: ${state.sourceReason}. Automatyczne rekomendacje i prognozy są wstrzymane. Możesz zapisać własny odczyt ceny.`;
- const sourceStamp=state.sourceAt?new Date(state.sourceAt).toLocaleString('pl-PL'):'brak';$('source-detail').textContent=`Źródło: ${state.sourceName}. Status: ${state.sourceReason}. Ostatni znany pomiar feedu: ${sourceStamp}. Wpisy ręczne nie są automatycznie weryfikowane. Poprzednie niezweryfikowane prognozy i demonstracyjne historie z wersji 1 nie zostały przeniesione.`;
- $('summary-line').textContent=state.loading?'Weryfikuję czas i stan kolektora…':`${market.length} aktualnych odczytów (w tym ${market.filter(x=>x.kind==='manual').length} ręcznych). Nie publikujemy prognoz dziennych bez wiarygodnej historii i testów skuteczności.`;
- const filtered=market.filter(x=>state.filter==='all'||(state.filter==='saved'?state.watch.includes(String(x.eaId)):x.trend===state.filter));
- $('cards').innerHTML=filtered.length?filtered.slice(0,40).map(rowMarkup).join(''):`<div class="empty"><b>Brak potwierdzonych aktualnych notowań.</b><br>Feed: ${escapeHTML(state.sourceReason)}<br>To lepsze niż wyświetlanie zmyślonych prognoz. Dodaj własny odczyt ceny poniżej lub sprawdź źródło ponownie później.</div>`;
- $('cards').querySelectorAll('.signal').forEach(el=>{const fn=()=>showDetail(market.find(x=>String(x.eaId)===el.dataset.id&&x.kind===el.dataset.kind));el.addEventListener('click',fn);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fn()}})});
- calc();
+function render(){strategyRender();
+ $('data-pill').textContent=state.busy?'◌ Pobieram':state.lastError?'! Błąd źródła':state.quotes.length?'● Notowania pobrane':'○ Nie połączono';
+ $('data-pill').className='pill '+(state.lastError||!state.quotes.length?'warn':'');
+ $('refresh').disabled=state.busy;$('refresh').textContent=state.busy?'⏳ Pobieram strony i sprawdzam ceny…':'↻   Pobierz świeże ceny i analizuj';
+ const e=evaluated(),filtered=e.filter(c=>state.view==='all'||c.analysis.signal===state.view);
+ $('market-summary').textContent=state.lastFetch?`${e.length} kart; ${e.filter(c=>c.analysis.fresh).length} ze świeżą ceną. ${e.filter(c=>c.analysis.signal==='candidate').length} scenariuszy odbicia, ${e.filter(c=>c.analysis.signal==='flip').length} kart o stabilniejszej cenie.`:'Przed pierwszym skanem — historia zacznie zapisywać się automatycznie po każdym pobraniu.';
+ $('cards').innerHTML=filtered.length?filtered.map(cardElement).join(''):'<div class="empty">'+(state.lastError?'Źródło nie zwróciło wiarygodnych cen. Zobacz szczegóły poniżej.':'Brak kart w wybranej kategorii. Zmiana filtra nie wymaga kolejnego pobrania.')+'</div>';
+ document.querySelectorAll('[data-card]').forEach(el=>el.addEventListener('click',()=>show(el.dataset.card)));
+ $('freshness-strip').hidden=!state.lastError;$('freshness-strip').textContent=state.lastError||'';
+ $('source-detail').textContent=state.lastError?`BŁĄD: ${state.lastError}\nAdres: ${state.workerUrl||'nie skonfigurowano'}\nNie tworzymy cen zastępczych. Jeśli FUTBIN blokuje dostęp, Worker powinien zwrócić błąd.`:
+    state.lastFetch?`Pobranie: ${new Date(state.lastFetch).toLocaleString('pl-PL')}\nŹródło: FUTBIN przez Cloudflare Worker\nKarty: ${state.quotes.length}\nNieodczytane strony: ${state.failed.length}\nHistoria jest na tym urządzeniu (lokalna), nie jest synchronizowana z innymi telefonami.`:'Worker: '+(state.workerUrl||'niepodłączony');
 }
-function plot(points){if(points.length<2)return '<div class="empty">Brak porównywalnej historii do wykresu.</div>';const data=points.slice(-150),vals=data.map(p=>p[1]),min=Math.min(...vals),max=Math.max(...vals);const domain=(max-min)||1;const poly=data.map((p,i)=>(i?'L':'M')+(10+i*350/(data.length-1)).toFixed(2)+' '+(115-100*(p[1]-min)/domain).toFixed(2)).join(' ');return `<svg class="chart" viewBox="0 0 370 135" role="img" aria-label="Wykres zapisanej historii"><path d="M10 15H360M10 65H360M10 115H360" stroke="#34515d" stroke-dasharray="3 4"/><path d="${poly}" fill="none" stroke="#47e2ad" stroke-width="2.5"/><text x="10" y="129" fill="#b0c6ce" font-size="11">min ${coins(min)}</text><text x="265" y="129" fill="#b0c6ce" font-size="11">max ${coins(max)}</text></svg>`;}
-function showDetail(r){if(!r)return;const bookmarked=state.watch.includes(String(r.eaId));const offer=maxBuy(r.price),refSell=sellLimit(r.price);$('detail').innerHTML=`<div class="eyebrow">KARTA / PS–XBOX</div><h2 style="margin:8px 0">${escapeHTML(r.name)}</h2><div class="details-sub">${r.kind==='manual'?'Cena wpisana ręcznie':'Zewnętrzny indeks cen'} • ${Math.round(r.quoteAge)} min od pomiaru</div>${plot(r.points)}<div class="detail-grid"><div class="detail-cell"><small>Cena referencyjna</small><strong>${coins(r.price)}</strong></div><div class="detail-cell"><small>Scenariusz sprzedaży (−2%)</small><strong>${coins(refSell)}</strong></div><div class="detail-cell"><small>Maks. kupno dla Twoich parametrów</small><strong>${coins(offer)}</strong></div><div class="detail-cell"><small>Prognoza na ${state.horizon} dni</small><strong>Brak wiarygodnej</strong></div></div><div class="list-note"><b>${escapeHTML(r.trendText)}.</b> ${escapeHTML(r.reason)}</div><div class="list-note">Cena sprzedaży to tylko scenariusz liczony od aktualnej ceny. Maksymalny zakup NIE jest wykrytą aukcją ani obietnicą wzrostu. Zakłada 2% obniżenia ceny sprzedaży, 5% podatku EA i Twój próg zysku.</div><div class="btnline"><button class="secondary" id="watch-current">${bookmarked?'★ Usuń z zapisanych':'☆ Zapisz kartę'}</button><button class="ghost" id="close-inner">Zamknij</button></div>`;$('detail-dialog').showModal();$('watch-current').onclick=()=>{const key=String(r.eaId);state.watch=state.watch.includes(key)?state.watch.filter(x=>x!==key):[...state.watch,key];persist();$('detail-dialog').close();render();};$('close-inner').onclick=()=>$('detail-dialog').close();}
-function calc(){const a=number($('calc-buy').value),b=number($('calc-sell').value);if(!Number.isFinite(a)||!Number.isFinite(b)||a<=0||b<=0){$('calc-output').textContent='Wpisz dodatnie ceny zakupu i sprzedaży.';return}const payout=b-Math.floor(b*.05),net=payout-a;const text=`Podatek EA: ${coins(Math.floor(b*.05))} • Wynik: ${net>0?'+':''}${coins(net)} coins (${pct(net/a*100)} ROI)`;$('calc-output').textContent=text;}
-async function fetchJSON(url){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12500);try{const r=await fetch(url,{signal:controller.signal,cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(timeout)}}
-function setLoading(v,msg){state.loading=v;$('refresh').disabled=v;$('refresh').textContent=v?'⏳ Sprawdzam…':'↻   Sprawdź świeżość i rynek';$('status-note').textContent=msg;render();}
-async function refresh(){if(state.loading)return;setLoading(true,'Sprawdzam, czy źródło rzeczywiście ma nowe ceny.');try{
-  const [latestResult,debugResult]=await Promise.allSettled([fetchJSON(API+'/latest'),fetchJSON(API+'/debug')]);
-  if(latestResult.status!=='fulfilled')throw Error('Nie można pobrać notowań: '+String(latestResult.reason?.message||'brak odpowiedzi'));
-  const latest=latestResult.value;if(!latest||!latest.groups||typeof latest.groups!=='object')throw Error('Źródło zwróciło niepoprawny format notowań');
-  state.sourceAt=latest.updated||null;state.sourceName='fc27-market.val.run';const age=statusForStamp(state.sourceAt);if(!age.ok){state.sourceStatus='stale';state.sourceReason=age.reason;state.market=[];setLoading(false,'Dane źródła są stare. Nie pobieram nieaktualnych historii i nie wyświetlam fałszywych prognoz.');return;}
-  if(debugResult.status!=='fulfilled')throw Error('Nie można potwierdzić stanu kolektora cen — wstrzymano analizę');
-  const dbg=debugResult.value; if(!dbg||dbg.anchor?.ok!==true||dbg.feed?.decode==='failed')throw Error('Kolektor cen zgłasza błąd walidacji źródła — wstrzymano analizę');
-  if(!validTimestamp(dbg.generatedAt)||elapsedMinutes(dbg.generatedAt)>MAX_SOURCE_AGE_MIN)throw Error('Raport stanu kolektora jest przestarzały');
-  const all=Object.entries(latest.groups).flatMap(([group,list])=>Array.isArray(list)?list.map(p=>({...p,group})):[]);
-  const cap=state.balance*state.maxStake/100;
-  const selected=all.filter(p=>String(p.eaId||'').length>0&&safePrice(p.price)&&p.price<=cap&&p.price>=500).sort((a,b)=>Number(b.rating||0)-Number(a.rating||0)).slice(0,32);
-  // Request a bounded amount of price history; never pretend data is current without timestamps.
-  for(let i=0;i<selected.length;i+=4){await Promise.all(selected.slice(i,i+4).map(async p=>{try{const h=await fetchJSON(API+'/history/'+encodeURIComponent(p.eaId));if(Array.isArray(h.t)&&Array.isArray(h.p))for(let j=0;j<Math.min(h.t.length,h.p.length);j++){const timestamp=Number(h.t[j])*60000;snapshot(p.eaId,p.name,timestamp,h.p[j]);}}catch{/* history absent -> no trend estimate */}}))}
-  for(const p of selected)snapshot(p.eaId,p.name,Date.parse(state.sourceAt),p.price);
-  state.market=selected;state.sourceStatus='fresh';state.sourceReason=`${age.reason}; walidacja kolektora OK`;persist();setLoading(false,`Odczyt ${selected.length} kart. Ceny z indeksu nie oznaczają konkretnych ofert Buy Now.`);
- }catch(e){state.sourceStatus='error';state.sourceReason=String(e.message||e);state.market=[];setLoading(false,'Nie ma aktualnych, zweryfikowanych notowań. Odrzuciłem stare lub niewiarygodne dane.');}}
-function parseCSV(text){const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(lines.length<2)throw Error('CSV jest pusty');const delim=(lines[0].match(/;/g)||[]).length>(lines[0].match(/,/g)||[]).length?';':',';const hdr=lines[0].split(delim).map(x=>x.trim().toLowerCase());const find=(...k)=>hdr.findIndex(x=>k.includes(x));const ix={id:find('eaid','id'),name:find('name','nazwa'),date:find('timestamp','date','data'),price:find('price','cena')};if(Object.values(ix).some(v=>v<0))throw Error('Nagłówki: eaId,name,timestamp,price');let ok=0;for(const ln of lines.slice(1)){const parts=ln.split(delim).map(x=>x.trim().replace(/^"|"$/g,''));const timestamp=/^\d{13}$/.test(parts[ix.date])?+parts[ix.date]:/^\d{10}$/.test(parts[ix.date])?+parts[ix.date]*1000:Date.parse(parts[ix.date]);if(snapshot(parts[ix.id],parts[ix.name],timestamp,parts[ix.price]))ok++;}if(!ok)throw Error('Brak poprawnych odczytów z ostatnich 35 dni.');persist();render();return ok;}
-function exportCSV(){const rows=['eaId,name,timestamp,price'];for(const [id,v]of Object.entries(state.snapshots))for(const [t,p]of v.points||[])rows.push(`${id},"${String(v.name||'').replaceAll('"','""')}",${new Date(t).toISOString()},${p}`);const blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fc27-history-v2.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function calendar(){const days=[['29','PAŹ','Nagrody Rivals','Możliwa zwiększona podaż. Nie przypisujemy automatycznie wzrostu kolejnego dnia.'],['30','PAŹ','Nowe promo / content','Potencjalny spadek po otwarciu paczek. Termin należy zweryfikować w grze.'],['01','LIS','Nagrody Squad Battles','Możliwa przecena kart z paczek.'],['02','LIS','Kolejny tydzień gry','Sprawdzaj aktualny harmonogram Champions.']];$('calendar').innerHTML=days.map(d=>`<div class="event"><div class="datebox"><strong>${d[0]}</strong><small>${d[1]}</small></div><div><strong>${d[2]}</strong><p>${d[3]}</p></div></div>`).join('');}
-$('edit-balance').onclick=()=>{const s=prompt('Saldo coinsów:',String(state.balance));if(s===null)return;const p=Number(s.replace(/\s/g,''));if(Number.isFinite(p)&&p>=0&&p<=1e8){state.balance=p;persist();render()}else alert('Wpisz poprawną kwotę')};
+function show(id){const c=evaluated().find(x=>x.id===id);if(!c)return;const a=c.analysis;
+ $('card-detail').innerHTML=`<div class="eyebrow">ANALIZA KARTY</div><h2>${esc(c.name)}</h2><div class="details-sub">FUTBIN · ${esc(c.url)} · ${Math.round(a.age)} min od notowania</div>
+ <div class="detail-grid"><div class="detail-cell"><small>Cena dziś</small><strong>${money(c.price)}</strong></div><div class="detail-cell"><small>Zakup / maks. quick flip</small><strong>${money(a.targetBid)}</strong></div><div class="detail-cell"><small>Sprzedaż referencyjna −1,5%</small><strong>${money(a.quickSell)}</strong></div><div class="detail-cell"><small>Zysk po podatku przy zakupie ≤ limit</small><strong>+${money(a.possibleFlipProfit)}</strong></div></div>
+ <div class="list-note"><strong>Wniosek:</strong> ${esc(a.why)}</div>
+ <div class="list-note">Historia: ${a.historyCount} punktów w ostatnich 14 dniach. 24h: ${percent(a.p24)} • 7d: ${percent(a.p7)}. ${a.possibleRecovery?`<strong>Scenariusz powrotu do lokalnego poziomu:</strong> ${money(a.potentialSell)} i ${money(a.potentialProfit)} netto. NIE jest to prognoza.`:'Brak dowodu na prawdopodobne odbicie w 1–3 dni.'}</div>
+ <div class="list-note">Udział w saldzie: ${percent(a.exposure*100)}. Ryzyko koncentracji: ${a.risk}. Cena z FUTBIN nie oznacza, że istnieje dostępna aukcja po tej kwocie.</div>
+ <div class="btnline"><a class="secondary" href="${esc(c.url)}" target="_blank" rel="noopener noreferrer" style="text-align:center">Otwórz na FUTBIN ↗</a></div>`;
+ $('card-modal').showModal();}
+function showSource(){if(!state.workerUrl){$('settings').hidden=false;$('worker-url').focus();}}
+async function refresh(){if(state.busy)return;
+ if(!state.workerUrl){state.lastError='Najpierw jednorazowo podłącz adres darmowego Workera w ustawieniach źródła.';showSource();render();return;}
+ state.busy=true;state.lastError=null;$('status-note').textContent='Pobieram stronę FUTBIN teraz, nie korzystam ze starego feedu…';render();
+ try{const controller=new AbortController(),tid=setTimeout(()=>controller.abort(),50000);
+  let res;try{res=await fetch(state.workerUrl.replace(/\/$/,'')+'/scan?count=16&t='+Date.now(),{cache:'no-store',signal:controller.signal});}finally{clearTimeout(tid);}
+  const payload=await res.json();if(!res.ok)throw Error(payload.error||payload.errors?.[0]||`Worker HTTP ${res.status}`);
+  if(!Array.isArray(payload.cards)||!payload.cards.length)throw Error('Nie pobrano poprawnych kart. Sprawdź źródło.');
+  if(payload.platform!=='console'||payload.source!=='FUTBIN')throw Error('Źródło nie wskazuje rynku konsolowego FUTBIN');
+  const clean=payload.cards.filter(c=>c.id&&c.name&&Number.isFinite(c.price)&&c.price>=200&&Number.isFinite(Date.parse(c.updatedAt))&&Date.now()-Date.parse(c.updatedAt)<=45*60000&&Date.now()-Date.parse(c.updatedAt)>=-2*60000);
+  if(!clean.length)throw Error('Wszystkie notowania były nieaktualne, brak poprawnych czasów aktualizacji.');
+  state.quotes=clean;state.lastFetch=Date.now();state.failed=payload.errors||[];
+  for(const q of clean)record(q);save();
+  $('status-note').textContent=`Odświeżono ${clean.length} cen. Historia zapisuje się automatycznie; po kilku sesjach porównamy schematy.`;
+ }catch(e){state.lastError=String(e.message||e);$('status-note').textContent='Nie udało się pobrać bieżących cen. Nie wyświetlam fikcyjnych rekomendacji.';state.quotes=[];}
+ finally{state.busy=false;render();}
+}
+function calc(){const buy=Number($('calc-buy').value),sell=Number($('calc-sell').value),tax=Math.floor(sell*.05),profit=sell-tax-buy;
+ $('calc-output').textContent=buy>0&&sell>0?`Podatek EA: ${money(tax)} • Zysk netto: ${profit>0?'+':''}${money(profit)} coins • ROI: ${percent(profit/buy*100)}`:'Podaj poprawne ceny.';}
+$('edit-balance').onclick=()=>{const s=prompt('Aktualne saldo coinsów:',String(state.balance));if(s===null)return;const v=Number(s.replaceAll(' ',''));if(!Number.isFinite(v)||v<0||v>100000000)return alert('Nieprawidłowe saldo');state.balance=v;save();render()};
 $('refresh').onclick=refresh;
 $('settings-toggle').onclick=()=>{$('settings').hidden=!$('settings').hidden};
-$('save-settings').onclick=()=>{const p=number($('min-profit').value),roi=number($('min-roi').value),stake=number($('max-stake').value),days=number($('horizon').value);if(p<100||roi<1||roi>50||stake<1||stake>50||days<1||days>7)return alert('Sprawdź parametry');Object.assign(state,{minProfit:p,minROI:roi,maxStake:stake,horizon:days});persist();render();$('settings').hidden=true};
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));render()});
-$('manual-form').onsubmit=e=>{e.preventDefault();const name=$('manual-name').value.trim(),id=$('manual-id').value.trim(),price=safePrice($('manual-price').value);if(!name||!id||!price)return alert('Sprawdź nazwę, identyfikator i cenę.');const now=Date.now();const success=snapshot(id,name,now,price);if(!success)return alert('Duża, nagła zmiana ceny — wpis został wstrzymany. Potwierdź aktualną cenę na FUTBIN.');state.manualQuotes[id]={name,price,updatedAt:new Date(now).toISOString()};persist();render();$('manual-status').textContent=`Zapisano ${name}: ${coins(price)} coins o ${new Date(now).toLocaleTimeString('pl-PL')}. To odczyt ręczny, nie prognoza.`;$('manual-price').value='';};
-$('import-trigger').onclick=()=>$('import-csv').click();$('import-csv').onchange=async e=>{try{$('manual-status').textContent=`Zaimportowano ${parseCSV(await e.target.files[0].text())} pomiarów.`}catch(err){alert(err.message)}e.target.value=''};
-$('export-data').onclick=exportCSV;$('close-dialog').onclick=()=>$('detail-dialog').close();
-for(const [k,id] of [['minProfit','min-profit'],['minROI','min-roi'],['maxStake','max-stake'],['horizon','horizon']])$(id).value=state[k];
-for(const x of ['calc-buy','calc-sell'])$(x).addEventListener('input',calc);
-document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>document.querySelector(b.dataset.jump).scrollIntoView({behavior:'smooth'}));
-calendar();render();refresh();
-if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=2.0.0',{updateViaCache:'none'}).catch(()=>{});
-let touchY=null;window.addEventListener('touchstart',e=>{touchY=window.scrollY<5&&e.touches.length===1?e.touches[0].clientY:null},{passive:true});window.addEventListener('touchend',e=>{if(touchY!==null&&e.changedTouches[0].clientY-touchY>110&&!state.loading)refresh();touchY=null},{passive:true});
+$('save-settings').onclick=()=>{const value=$('worker-url').value.trim().replace(/\/$/,'');try{const u=new URL(value);if(u.protocol!=='https:'||(!u.hostname.endsWith('.workers.dev')&&!u.hostname.endsWith('.pages.dev')&&!u.hostname.endsWith('.cloudflareworkers.com')))throw Error('Oczekiwany HTTPS Cloudflare Worker (*.workers.dev)');state.workerUrl=u.origin;save();state.lastError=null;$('settings').hidden=true;render();}catch(e){alert('Niepoprawny adres. '+e.message)}};
+$('worker-url').value=state.workerUrl;
+for(const el of document.querySelectorAll('[data-filter]'))el.onclick=()=>{state.view=el.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===el));render()};
+$('close-modal').onclick=()=>$('card-modal').close();
+for(const id of ['calc-buy','calc-sell'])$(id).addEventListener('input',calc);
+$('export-data').onclick=()=>{const rows=['id,timestamp,price'];for(const [id,ps]of Object.entries(state.history))for(const [t,p] of ps)rows.push(`${id},${new Date(t).toISOString()},${p}`);const blob=new Blob([rows.join('\n')],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fc27-trading-history.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)};
+const ev=[['29','PAŹ','Rivals Rewards','Podaż po nagrodach; weryfikujemy, czy następuje odbicie'],['30','PAŹ','Nowa promocja','Więcej paczek może obniżyć ceny części kart'],['01','LIS','Squad Battles','Potencjalna podaż po nagrodach, nie pewna przecena']];$('events').innerHTML=ev.map(x=>`<div class="event"><div class="datebox"><strong>${x[0]}</strong><small>${x[1]}</small></div><div><strong>${x[2]}</strong><p>${x[3]}</p></div></div>`).join('');
+for(const el of document.querySelectorAll('[data-jump]'))el.onclick=()=>document.querySelector(el.dataset.jump).scrollIntoView({behavior:'smooth'});
+calc();render();if(!state.workerUrl)$('settings').hidden=false;
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js?v=4.0.0',{updateViaCache:'none'}).catch(()=>{});
+let touchStart=null;window.addEventListener('touchstart',e=>{touchStart=window.scrollY<4?e.touches?.[0]?.clientY:null},{passive:true});window.addEventListener('touchend',e=>{if(touchStart!==null&&e.changedTouches[0].clientY-touchStart>110)refresh();touchStart=null},{passive:true});
