@@ -4,38 +4,57 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#081720" />
-  <meta name="description" content="FC 27 Trading Desk — sygnały rynkowe oparte na danych, bez automatycznego kupowania kart." />
+  <meta name="description" content="FC 27 Trading Desk — monitorowanie cen, historia i kalkulator transakcji z kontrolą świeżości danych." />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./styles.css" />
-  <title>FC 27 · Trading Desk</title>
+  <link rel="stylesheet" href="./styles.css?v=2.0.0" />
+  <title>FC 27 · Trading Desk v2</title>
 </head>
 <body>
-  <div id="app">
-    <header class="topbar"><div class="brand"><div class="brandmark">27<span>↗</span></div><div><strong>Trading Desk</strong><small>ULTIMATE TEAM / PS5–XBOX</small></div></div><span class="pill" id="data-pill">● Ładowanie</span></header>
-    <main>
-      <section class="hero">
-        <div class="section-caption">TWÓJ PORTFEL <span>• BALANCED</span></div>
-        <div class="balance-line"><div><div class="muted small">Dostępne coins</div><div id="balance-display" class="huge">320 000 <span>◉</span></div></div><button class="iconbtn" id="edit-balance" title="Edytuj saldo">✎</button></div>
-        <div class="hero-metrics"><div><small>Limit na kartę</small><strong id="limit-card">48 000</strong></div><div><small>Cel netto / flip</small><strong id="metric-target">1 500+</strong></div><div><small>Rynek</small><strong>PS / Xbox</strong></div></div>
-        <button class="primary" id="refresh">↻ &nbsp; Odśwież analizę rynku</button>
-        <p id="status-note" class="hint" aria-live="polite">Ceny indeksowe nie oznaczają dostępnej aukcji. Zawsze potwierdź cenę w grze.</p>
-      </section>
-      <div class="strip" id="freshness-strip" hidden></div>
-      <section class="panel controls">
-        <div class="section-head"><div><div class="eyebrow">SCANNER</div><h2>Sygnały inwestycyjne</h2></div><button class="ghost smallbtn" id="settings-toggle">⚙ Parametry</button></div>
-        <div id="settings" class="settings" hidden><div class="field-grid"><label>Min. zysk netto (coins)<input id="min-profit" inputmode="numeric" type="number" min="100" step="100" /></label><label>Min. zwrot netto (%)<input id="min-roi" inputmode="decimal" type="number" min="1" max="50" step="0.5" /></label><label>Limit kapitału / karta (%)<input id="max-stake" inputmode="numeric" type="number" min="1" max="50" step="1" /></label><label>Horyzont (dni)<select id="horizon"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label></div><button id="save-settings" class="secondary">Zastosuj</button></div>
-        <div class="tabs" role="tablist"><button class="tab active" data-filter="all">Wszystkie</button><button class="tab" data-filter="buy">Potencjał</button><button class="tab" data-filter="watch">Obserwuj</button><button class="tab" data-filter="saved">Zapisane</button></div>
-        <div id="summary-line" class="hint">Analizuję kandydatów z dostępnego źródła.</div>
-        <div id="cards" class="cards"><div class="empty">Brak danych. Użyj „Odśwież analizę rynku” albo włącz demo.</div></div>
-      </section>
-      <section class="panel"><div class="section-head"><div><div class="eyebrow">KALENDARZ</div><h2>Co może ruszyć ceny?</h2></div></div><div id="calendar" class="calendar"></div><p class="hint">Wydarzenia to hipotezy o podaży i popycie, nie potwierdzone przyczyny ruchów. Godziny i zawartość w grze wymagają weryfikacji.</p></section>
-      <section class="panel"><div class="section-head"><div><div class="eyebrow">DANE</div><h2>Źródła i historia</h2></div></div><p class="bodycopy">Eksperymentalny, publiczny odczyt JSON. Alternatywnie zaimportuj własne notowania w CSV i buduj historię bez płacenia za API.</p><div class="button-row"><button id="load-demo" class="secondary">▷ Uruchom demo</button><button id="import-trigger" class="ghost">↑ Import CSV</button><input id="import-csv" type="file" accept=".csv,text/csv" hidden /></div><div id="source-detail" class="source-detail"></div><button id="export-data" class="textbtn">Pobierz zapisane notowania jako CSV ↓</button></section>
-      <section class="disclaimer">Bez auto-buyera, logowania do EA ani obietnic zysku. Prognozy są scenariuszami modelowymi, nie informacją o dostępnych ofertach Buy Now. Bezpłatne zewnętrzne źródło może przestać działać.</section>
-    </main>
-    <nav class="bottomnav"><button data-jump=".hero" class="active">⌂<span>Portfel</span></button><button data-jump=".controls">⌁<span>Rynek</span></button><button data-jump=".calendar">◷<span>Kalendarz</span></button></nav>
-  </div>
-  <dialog id="detail-dialog"><div class="dialog-body"><button class="close" id="close-dialog">✕</button><div id="detail"></div></div></dialog>
-  <script src="./app.js" defer></script>
+<div id="app">
+  <header class="topbar"><div class="brand"><div class="brandmark">27<span>↗</span></div><div><strong>Trading Desk</strong><small>ULTIMATE TEAM / PS5–XBOX · V2</small></div></div><span class="pill off" id="data-pill">○ Sprawdzam</span></header>
+  <main>
+    <section class="hero">
+      <div class="section-caption">TWÓJ PORTFEL <span>• BALANCED</span></div>
+      <div class="balance-line"><div><div class="muted small">Dostępne coins</div><div id="balance-display" class="huge">320 000 <span>◉</span></div></div><button class="iconbtn" id="edit-balance" title="Edytuj saldo" aria-label="Edytuj saldo">✎</button></div>
+      <div class="hero-metrics"><div><small>Limit na kartę</small><strong id="limit-card">48 000</strong></div><div><small>Cel netto / flip</small><strong id="metric-target">1 500+</strong></div><div><small>Rynek</small><strong>PS / Xbox</strong></div></div>
+      <button class="primary" id="refresh">↻ &nbsp; Sprawdź świeżość i rynek</button>
+      <p id="status-note" class="hint" aria-live="polite">Dane źródła są sprawdzane przed analizą. Nie pokazujemy fikcyjnych okazji.</p>
+    </section>
+    <div class="strip" id="freshness-strip" hidden role="status"></div>
+    <section class="panel controls">
+      <div class="section-head"><div><div class="eyebrow">SCANNER</div><h2>Ocena rynku</h2></div><button class="ghost smallbtn" id="settings-toggle">⚙ Parametry</button></div>
+      <div id="settings" class="settings" hidden><div class="field-grid">
+        <label>Min. zysk netto (coins)<input id="min-profit" type="number" min="100" step="100" /></label>
+        <label>Min. zwrot netto (%)<input id="min-roi" type="number" min="1" max="50" step="0.5" /></label>
+        <label>Limit kapitału / karta (%)<input id="max-stake" type="number" min="1" max="50" step="1" /></label>
+        <label>Horyzont analizy (dni)<select id="horizon"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label>
+      </div><button id="save-settings" class="secondary">Zastosuj</button></div>
+      <div class="tabs" role="tablist"><button class="tab active" data-filter="all">Wszystkie</button><button class="tab" data-filter="stable">Stabilne</button><button class="tab" data-filter="falling">Spadki</button><button class="tab" data-filter="saved">Zapisane</button></div>
+      <div id="summary-line" class="hint">Sprawdzam połączenie z danymi.</div>
+      <div id="cards" class="cards"><div class="empty">Przedstawimy tylko dane z potwierdzonym czasem pomiaru.</div></div>
+    </section>
+    <section class="panel"><div class="section-head"><div><div class="eyebrow">TWÓJ ODCZYT</div><h2>Dodaj cenę z FUTBIN</h2></div></div>
+      <p class="bodycopy">Gdy automatyczne API jest niedostępne, możesz ręcznie zapisać rzeczywistą cenę, którą właśnie widzisz na FUTBIN. Odczyt zostanie oznaczony jako ręczny, nie jako potwierdzona okazja.</p>
+      <form id="manual-form" class="manual-form">
+        <div class="field-grid"><label>Nazwa karty<input id="manual-name" placeholder="np. Selma Bacha 86" required maxlength="80" /></label><label>Identyfikator (dowolny, stały)<input id="manual-id" placeholder="np. bacha-gold" required maxlength="64" /></label></div>
+        <label>Cena teraz (PS/Xbox)<input id="manual-price" placeholder="np. 14500" type="number" min="200" max="10000000" step="50" required /></label>
+        <button class="secondary" type="submit">+ Zapisz aktualną cenę</button>
+      </form>
+      <div id="manual-status" class="hint" aria-live="polite"></div>
+    </section>
+    <section class="panel"><div class="section-head"><div><div class="eyebrow">KALKULATOR</div><h2>Sprawdź opłacalność flipa</h2></div></div>
+      <p class="bodycopy">Rzeczywisty wynik matematyczny, nie prognoza przyszłej ceny. Wpisz cenę zakupu i możliwą cenę sprzedaży.</p>
+      <div class="field-grid"><label>Zakup<input id="calc-buy" type="number" min="0" step="50" value="12500" /></label><label>Sprzedaż BIN<input id="calc-sell" type="number" min="0" step="50" value="14500" /></label></div>
+      <div id="calc-output" class="calc-output"></div>
+    </section>
+    <section class="panel"><div class="section-head"><div><div class="eyebrow">KALENDARZ</div><h2>Co może ruszyć ceny?</h2></div></div><div id="calendar" class="calendar"></div><p class="hint">Wydarzenia są hipotezami o podaży i popycie. Dopóki nie mamy kilku tygodni świeżych notowań, nie doliczamy z góry żadnych wzrostów.</p></section>
+    <section class="panel"><div class="section-head"><div><div class="eyebrow">DANE</div><h2>Źródła i historia</h2></div></div><p class="bodycopy">Dane źródła sprawdzamy przez czas aktualizacji i status jego kolektora. Niedostępne API nie uruchamia żadnych alertów. Historia z ostatnich 35 dni przechowywana jest tylko na Twoim urządzeniu.</p><div class="button-row"><button id="import-trigger" class="ghost">↑ Import CSV</button><input id="import-csv" type="file" accept=".csv,text/csv" hidden /></div><div id="source-detail" class="source-detail"></div><button id="export-data" class="textbtn">Pobierz zapisane notowania jako CSV ↓</button></section>
+    <section class="disclaimer">Wersja 2.0 • Nie pobiera loginu EA, nie kupuje kart ani nie skanuje aukcji. Źródło bezpłatne jest eksperymentalne i może przestać działać. Brak prognozy to informacja o braku dowodów, a nie błąd aplikacji.</section>
+  </main>
+  <nav class="bottomnav"><button data-jump=".hero" class="active">⌂<span>Portfel</span></button><button data-jump=".controls">⌁<span>Rynek</span></button><button data-jump=".calendar">◷<span>Kalendarz</span></button></nav>
+</div>
+<dialog id="detail-dialog"><div class="dialog-body"><button class="close" id="close-dialog">✕</button><div id="detail"></div></div></dialog>
+<script src="./app.js?v=2.0.0" defer></script>
 </body>
 </html>
