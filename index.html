@@ -1,28 +1,30 @@
 <!doctype html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#081720"><meta name="description" content="FC 27 Trading Desk — one-tap market scan, portfolio-aware FC 27 trading analysis"><link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css?v=4.0.0"><title>FC 27 Trading Desk v4</title></head><body>
-<header class="topbar"><div class="brand"><div class="brandmark">27<span>↗</span></div><div><strong>Trading Desk</strong><small>PS / XBOX · V4 · LIVE ADAPTER</small></div></div><span id="data-pill" class="pill warn">Źródło do podłączenia</span></header>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#081720"><meta name="description" content="FC 27 Trading Desk — one-tap market scan, portfolio-aware FC 27 trading analysis"><link rel="icon" href="./icon.svg" type="image/svg+xml"><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css?v=5.0.0"><title>FC 27 Trading Desk v5</title></head><body>
+<header class="topbar"><div class="brand"><div class="brandmark">27<span>↗</span></div><div><strong>Trading Desk</strong><small>PS / XBOX · V5 · FUTZIP RSS</small></div></div><span id="data-pill" class="pill warn">Źródło do podłączenia</span></header>
 <main>
 <section class="hero">
  <div class="section-caption">TWÓJ PORTFEL <span>• AUTO STRATEGIA</span></div>
  <div class="balance-line"><div><div class="muted small">Dostępne coins</div><div class="huge" id="balance-display">320 000 <span>◉</span></div></div><button id="edit-balance" class="iconbtn" aria-label="Edytuj saldo">✎</button></div>
- <div class="hero-metrics"><div><small>Strategia</small><strong id="tier">Balanced</strong></div><div><small>Pozycja premium</small><strong id="max-position">192 000</strong></div><div><small>Rynek</small><strong>PS / Xbox</strong></div></div>
- <button class="primary" id="refresh">↻ &nbsp; Pobierz świeże ceny i analizuj</button>
- <p id="status-note" class="hint" aria-live="polite">Po jednorazowym podłączeniu bezpłatnego Workera każdy klik uruchamia nowe pobranie FUTBIN.</p>
+ <div class="hero-metrics"><div><small>Strategia</small><strong id="tier">Balanced</strong></div><div><small>Podwyższona ekspozycja</small><strong id="max-position">192 000</strong></div><div><small>Rynek</small><strong>PS / Xbox</strong></div></div>
+ <button class="primary" id="refresh">↻ &nbsp; Odśwież rynek FUTZIP</button>
+ <p id="status-note" class="hint" aria-live="polite">Kliknij, aby pobrać aktualny kanał zmian cen, nowych kart i SBC. Nie pobiera aukcji EA.</p>
 </section>
 <div id="freshness-strip" class="strip" hidden></div>
-<section class="panel" id="market-section"><div class="section-head"><div><div class="eyebrow">MARKET SCANNER</div><h2>W co warto inwestować?</h2></div><button id="settings-toggle" class="ghost smallbtn">⚙ Źródło</button></div>
+<section class="panel" id="market-section"><div class="section-head"><div><div class="eyebrow">RYNEK / OSTATNIE 24 GODZINY</div><h2>Ruchy cen i karty do sprawdzenia</h2></div><button id="settings-toggle" class="ghost smallbtn">⚙ Źródło</button></div>
  <div id="settings" class="settings" hidden><label class="blocklabel">Adres Twojego Cloudflare Workera<input id="worker-url" type="url" placeholder="https://fc27-market.nazwa.workers.dev" autocapitalize="none" autocomplete="off" spellcheck="false"></label><p class="hint">Wklej tutaj adres Workera po jednorazowej instalacji. Nie wpisuj tokenów EA, FUTBIN ani haseł.</p><button id="save-settings" class="secondary">Zapisz adres</button><p class="hint">Instalacja: patrz plik START_TUTAJ.md w paczce.</p></div>
  <div id="market-summary" class="hint">Brak sesji skanowania.</div>
- <div class="tabs"><button class="tab active" data-filter="all">Wszystkie</button><button class="tab" data-filter="candidate">Okazje</button><button class="tab" data-filter="flip">Quick flip</button><button class="tab" data-filter="risk">Ryzyko</button></div>
- <div id="cards" class="cards"><div class="empty">Połącz źródło raz i naciśnij „Pobierz świeże ceny”.</div></div>
+ <div class="tabs"><button class="tab active" data-filter="all">Wszystkie</button><button class="tab" data-filter="falls">Spadki</button><button class="tab" data-filter="rises">Wzrosty</button><button class="tab" data-filter="premium">50k+</button><button class="tab" data-filter="budget">Poza saldem</button></div>
+ <div id="cards" class="cards"><div class="empty">Kliknij „Odśwież rynek”, aby wczytać dane FUTZIP.</div></div>
 </section>
-<section class="panel"><div class="section-head"><div><div class="eyebrow">JAK INWESTOWAĆ</div><h2 id="strategy-title">Plan dla Twojego portfela</h2></div></div><p id="strategy-text" class="bodycopy"></p><div id="strategy-blocks" class="strategy-blocks"></div><p class="hint">Procent kapitału to limit ryzyka, nie obowiązek zakupu. Algorytm nie wyklucza kart za 150k przy saldzie 320k.</p></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">NOWOŚCI</div><h2>Nowe karty z feedu</h2></div></div><div id="new-cards" class="news-list"><p class="hint">Pobierz dane, aby zobaczyć nowe karty.</p></div></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">LIVE SBC</div><h2>Wyzwania i kontekst rynku</h2></div></div><div id="live-sbcs" class="news-list"><p class="hint">Brak załadowanych SBC.</p></div></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">JAK INWESTOWAĆ</div><h2 id="strategy-title">Plan dla Twojego portfela</h2></div></div><p id="strategy-text" class="bodycopy"></p><div id="strategy-blocks" class="strategy-blocks"></div><p class="hint">Każda karta do poziomu salda może być analizowana, również za 150k–200k. Im większa ekspozycja, tym bardziej ostrożnie oceniamy sygnał. RSS nie obejmuje całego rynku.</p></section>
 <section class="panel"><div class="section-head"><div><div class="eyebrow">KALKULATOR</div><h2>Policz zysk przed zakupem</h2></div></div><div class="field-grid"><label>Zakup<input id="calc-buy" inputmode="numeric" type="number" value="150000"></label><label>Sprzedaż BIN<input id="calc-sell" inputmode="numeric" type="number" value="165000"></label></div><div id="calc-output" class="calc-output"></div></section>
-<section class="panel"><div class="section-head"><div><div class="eyebrow">KALENDARZ UT</div><h2>Katalizatory zmian cen</h2></div></div><p class="bodycopy">Rivals, Champions, Squad Battles, nowe SBC i promocyjne paczki mogą zmieniać podaż i popyt. Kalendarz to kontekst, <b>nie automatyczna premia do prognozy</b>.</p><div id="events" class="calendar"></div></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">KALENDARZ UT</div><h2>Katalizatory zmian cen</h2></div></div><p class="bodycopy">Rivals, Champions, Squad Battles, nowe SBC i paczki mogą zmieniać podaż i popyt. Nie zakładamy, że dany dzień zawsze przynosi wzrost.</p><div id="events" class="calendar"></div></section>
 <section class="panel"><div class="section-head"><div><div class="eyebrow">KONTROLA DANYCH</div><h2>Co właściwie pobrano?</h2></div></div><div id="source-detail" class="source-detail">Brak aktualnego odczytu.</div><button id="export-data" class="ghost">↓ Eksport lokalnej historii CSV</button></section>
-<div class="disclaimer">Wersja 4.0 • Dane referencyjne FUTBIN ≠ wystawione oferty na rynku EA. Nie wykonujemy automatycznych zakupów. FUTBIN ogranicza scraping w regulaminie; pobieraj tylko w zakresie posiadanych uprawnień. Jeśli źródło blokuje pobranie, nie obchodzimy zabezpieczeń.</div>
+<div class="disclaimer">Wersja 5.0 • FUTZIP RSS pokazuje wybrane przeszłe ruchy, nie wszystkie aktualne ceny rynku ani oferty EA. Spadek ceny to nie dowód odbicia, a wcześniejszy wzrost nie oznacza przyszłego zysku. Brak automatycznych zakupów.</div>
 </main>
 <nav class="bottomnav"><button data-jump=".hero">⌂<span>Portfel</span></button><button data-jump="#market-section">⌁<span>Rynek</span></button><button data-jump=".calendar">◷<span>Kalendarz</span></button></nav>
 <dialog id="card-modal"><div class="dialog-body"><button id="close-modal" class="close">✕</button><div id="card-detail"></div></div></dialog>
-<script type="module" src="./app.js?v=4.0.0"></script>
+<script type="module" src="./app.js?v=5.0.0"></script>
 </body></html>
