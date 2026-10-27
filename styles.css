@@ -33,3 +33,12 @@
 .portfolio-card .card-actions{display:flex;gap:8px;margin-top:10px}
 .hidden{display:none!important}
 @media(min-width:700px){.portfolio-form .field-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* v7: owned positions, eventual profits and catalyst context */
+.portfolio-card.listed{border-color:#82683f;background:linear-gradient(150deg,#152e35,#302c26)}
+.portfolio-card .portfolio-reason{line-height:1.5;font-size:12px;color:#d9d1b7;margin:10px 0}
+.portfolio-alerts .owned-alert{border:1px solid #7f6337;background:#302b20;border-radius:12px;padding:11px 13px;margin:12px 0}
+.portfolio-alerts p{font-size:12px;line-height:1.5;color:#d9cba9;margin:5px 0 0}
+.already-owned{display:flex!important;align-items:center;gap:9px;font-size:12px!important;padding:7px 0}.already-owned input{width:17px!important;margin:0!important;accent-color:#47e2ad}
+.catalyst-summary{display:grid;gap:10px}.objective-example{background:#18393d;border:1px solid #31726b;border-radius:13px;padding:13px}.objective-example strong{display:block;margin:9px 0 4px}.objective-example p,.catalyst-item p{font-size:12px;line-height:1.6;color:#b9d2d4;margin:5px 0}.catalyst-item{background:#152e38;border:1px solid #36545e;border-radius:13px;padding:12px}.catalyst-item strong{font-size:13px;line-height:1.45}.catalyst-item small{color:#97abb6;font-size:11px}
+@media(max-width:390px){.portfolio-card .stats{grid-template-columns:1fr 1fr}.portfolio-card .stats>div:last-child{grid-column:span 2}}
